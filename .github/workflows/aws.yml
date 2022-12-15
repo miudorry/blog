@@ -1,0 +1,42 @@
+name: Production Build
+on:
+  pull_request:
+  push:
+    branches:
+      - d/prod
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        node-version: [16.x]
+        
+    steps:
+    - uses: actions/checkout@v1
+    
+    - name: Use Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v1
+      with:
+        node-version: ${{ matrix.node-version }}
+    
+    - name: Yarn Install
+      run: |
+        yarn install
+
+    - name: Production Build
+      run: |
+        yarn build
+        
+    - name: Configure AWS credentials from Test account
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id : ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key : ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ secrets.AWS_REGION }}
+    
+    - name: Copy files And create Invalidate
+      run: |
+        aws --version
+        aws s3 sync build s3://${{ secrets.AWS_PRODUCTION_BUCKET_NAME }}/
+        aws cloudfront create-invalidation --distribution-id ${{ secrets.DISTRIBUTION }} --paths "/index.html"
